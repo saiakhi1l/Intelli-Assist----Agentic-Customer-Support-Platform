@@ -1,0 +1,22 @@
+# Secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Next.js
+node_modules/
+.next/
+out/
+
+# Local environment
+intelliassist-frontend/.env.local
+
+intelli_assist_review.zip
+intelli_assist_source.zip
+

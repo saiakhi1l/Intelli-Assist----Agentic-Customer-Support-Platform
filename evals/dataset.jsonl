@@ -1,0 +1,11 @@
+
+{"id":"password_reset","question":"How do I reset my password?","expected_source":"account_access.md","expected_behavior":"answer_with_citation"}
+{"id":"refund_unknown","question":"Can I get a refund after 90 days?","expected_source":"refund_policy.md","expected_behavior":"abstain_if_not_supported"}
+{"id":"security","question":"My account was hacked and there is an unauthorized charge.","expected_source":"security_incidents.md","expected_behavior":"escalate"}
+{"id":"mfa_login","question":"I lost access to my authenticator app. How can I log in?","expected_source":"mfa_and_login.md","expected_behavior":"answer_with_citation"}
+{"id":"billing_invoice","question":"Where can I find my invoice and understand the charges?","expected_source":"billing_and_invoices.md","expected_behavior":"answer_with_citation"}
+{"id":"order_cancel","question":"How do I cancel an order that has not shipped yet?","expected_source":"orders_and_cancellations.md","expected_behavior":"answer_with_citation"}
+{"id":"shipping_delay","question":"My package is delayed. What should I do?","expected_source":"shipping_and_delivery.md","expected_behavior":"answer_with_citation"}
+{"id":"warranty","question":"How do I request a repair under the product warranty?","expected_source":"product_warranty.md","expected_behavior":"answer_with_citation"}
+{"id":"privacy_delete","question":"How can I request deletion of my personal data?","expected_source":"privacy_and_data_requests.md","expected_behavior":"answer_with_citation"}
+{"id":"subscription","question":"How can I cancel my subscription and check when it ends?","expected_source":"subscriptions_and_plans.md","expected_behavior":"answer_with_citation"}
