@@ -1,3 +1,4 @@
+
 # IntelliAssist - Agentic Customer Support Platform
 
 # API and server
@@ -10,21 +11,21 @@ pydantic-settings>=2.4,<3.0
 langchain>=0.3,<1.0
 langchain-core>=0.3
 langchain-community>=0.3,<1.0
+langchain-openai>=0.2,<2.0
 langchain-groq>=0.2,<1.0
+langchain-huggingface>=0.1,<1.0
 langgraph>=0.2,<2.0
 
 # RAG and vector database
 faiss-cpu>=1.8,<2.0
-langchain-openai>=0.2,<2.0
+sentence-transformers>=3.0,<6.0
 
-# Conversation memory
+# Conversation memory and databases
 redis>=5.0,<7.0
-
-# PostgreSQL
 psycopg[binary]>=3.2,<4.0
 psycopg-pool>=3.2,<4.0
 
-# Logging, metrics and AWS Lambda
+# Logging, metrics and serverless support
 structlog>=24.4,<26.0
 prometheus-client>=0.21,<1.0
 mangum>=0.19,<1.0
@@ -32,8 +33,3 @@ mangum>=0.19,<1.0
 # Testing
 pytest>=8.0
 httpx>=0.27
-
-# Optional: local embeddings if you remove OpenAI embeddings later
-sentence-transformers>=3.0
-
-npm install react-markdown remark-gfm

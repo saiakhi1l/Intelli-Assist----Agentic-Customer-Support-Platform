@@ -1,3 +1,5 @@
+
+import logging
 import secrets
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -10,11 +12,10 @@ from intelli_assist.graph import SupportGraph
 from intelli_assist.retrieval import KnowledgeRetriever
 from intelli_assist.schemas import ChatRequest, ChatResponse
 from intelli_assist.storage import SQLiteStore
+from intelli_assist.storage_postgres import PostgresStore
 from intelli_assist.ticket_service import TicketService
-import logging
 
 logger = logging.getLogger(__name__)
-
 
 store = None
 graph = None
@@ -24,20 +25,48 @@ graph = None
 async def lifespan(app: FastAPI):
     global store, graph
 
-    store = SQLiteStore(settings.sqlite_path)
+    store = None
+    graph = None
 
-    if settings.groq_api_key:
-        retriever = KnowledgeRetriever()
-        retriever.initialize()
+    try:
+        # Use Neon PostgreSQL when DATABASE_URL is configured.
+        # Otherwise, use SQLite for local development.
+        if settings.storage_backend == "postgres":
+            logger.info("Initializing PostgreSQL storage.")
+            store = PostgresStore(settings.database_url)
+        else:
+            logger.info("Initializing SQLite storage.")
+            store = SQLiteStore(settings.sqlite_path)
 
-        ticket_service = TicketService(store)
+        # Configure the support graph when the Groq API key is available.
+        if settings.groq_api_key:
+            retriever = KnowledgeRetriever()
+            retriever.initialize()
 
-        graph = SupportGraph(
-            retriever=retriever,
-            ticket_service=ticket_service,
-        )
+            ticket_service = TicketService(store)
 
-    yield
+            graph = SupportGraph(
+                retriever=retriever,
+                ticket_service=ticket_service,
+            )
+            logger.info("Support graph initialized successfully.")
+        else:
+            logger.warning(
+                "GROQ_API_KEY is not configured; support graph is unavailable."
+            )
+
+        yield
+
+    except Exception:
+        logger.exception("Application startup failed.")
+        raise
+
+    finally:
+        if store is not None and hasattr(store, "close"):
+            store.close()
+
+        store = None
+        graph = None
 
 
 app = FastAPI(
@@ -83,7 +112,7 @@ def require_auth(
         )
 
     # Replace this simple development identity with a validated
-    # JWT/OIDC principal in production.
+    # JWT/OIDC principal before production use.
     return {"sub": "authenticated-user"}
 
 
@@ -120,11 +149,11 @@ async def chat(
             detail="Support service is not ready.",
         )
 
-    # Use the authenticated identity, not the client-supplied customer_id.
+    # Use the authenticated identity, not a client-supplied customer ID.
     customer_id = principal["sub"]
 
     try:
-        # Retrieve conversation context.
+        # Retrieve existing conversation context.
         conversation = store.get_conversation(
             customer_id=customer_id,
             session_id=request.session_id,
@@ -140,28 +169,31 @@ async def chat(
             facts=conversation["facts"],
         )
 
-        # Update conversation history.
+        # Append the current interaction to conversation history.
         history = conversation["history"]
 
-        history.extend([
-            {
-                "role": "user",
-                "content": request.message,
-            },
-            {
-                "role": "assistant",
-                "content": result.get("answer", ""),
-            },
-        ])
+        history.extend(
+            [
+                {
+                    "role": "user",
+                    "content": request.message,
+                },
+                {
+                    "role": "assistant",
+                    "content": result.get("answer", ""),
+                },
+            ]
+        )
 
         # Keep only the configured number of recent messages.
         max_messages = settings.max_history_turns * 2
+
         if max_messages > 0:
             history = history[-max_messages:]
         else:
             history = []
 
-        # Persist the updated conversation.
+        # Persist conversation history.
         store.save_conversation(
             customer_id=customer_id,
             session_id=request.session_id,
@@ -170,7 +202,7 @@ async def chat(
             facts=conversation["facts"],
         )
 
-        # Return the structured response.
+        # Return the structured API response.
         return ChatResponse(
             request_id=result.get("request_id", str(uuid4())),
             session_id=request.session_id,
@@ -185,14 +217,11 @@ async def chat(
         )
 
     except HTTPException:
-        # Preserve intentional HTTP errors.
         raise
 
     except Exception:
-        # Log the full traceback in the server terminal.
         logger.exception("Chat request failed")
 
-        # Return a safe error message to the API client.
         raise HTTPException(
             status_code=500,
             detail="An internal support-service error occurred.",
