@@ -32,9 +32,12 @@ class PostgresStore:
         self.pool = ConnectionPool(
             conninfo=self.database_url,
             min_size=1,
-            max_size=5,
-            kwargs={"row_factory": dict_row},
+            max_size=3,
+            kwargs={"connect_timeout": 10},
             open=False,
+            check=ConnectionPool.check_connection,
+            max_lifetime=300,
+            max_idle=60
         )
         self.pool.open(wait=True)
         self._initialize()
