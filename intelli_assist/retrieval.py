@@ -2,7 +2,8 @@
 from pathlib import Path
 
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
+# from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import FastEmbedEmbeddings
 
 from intelli_assist.config import get_settings
 
@@ -11,9 +12,9 @@ class KnowledgeRetriever:
     def __init__(self, settings=None):
         self.settings = settings or get_settings()
 
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name=self.settings.embedding_model
-        )
+        self.embeddings = FastEmbedEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+)
 
         self.index_dir = Path(self.settings.faiss_index_dir)
         self.knowledge_dir = Path(self.settings.knowledge_dir)

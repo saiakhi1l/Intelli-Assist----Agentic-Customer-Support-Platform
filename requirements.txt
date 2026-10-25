@@ -18,7 +18,7 @@ langgraph>=0.2,<2.0
 
 # RAG and vector database
 faiss-cpu>=1.8,<2.0
-sentence-transformers>=3.0,<6.0
+fastembed
 
 # Conversation memory and databases
 redis>=5.0,<7.0
