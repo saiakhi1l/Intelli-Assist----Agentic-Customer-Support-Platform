@@ -1,18 +1,25 @@
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
-COPY intelli_assist ./intelli_assist
-COPY evals ./evals
-COPY data ./data
+# Install CPU-only PyTorch to avoid unnecessary GPU dependencies.
+RUN pip install --no-cache-dir \
+    torch \
+    --index-url https://download.pytorch.org/whl/cpu
 
-RUN pip install --no-cache-dir .
+# Install application dependencies.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && python -c "import fastembed; print('FastEmbed installed successfully')"
 
-EXPOSE 8000
+# Copy the application, knowledge base and existing FAISS index.
+COPY . .
 
-CMD ["sh", "-c", "uvicorn intelli_assist.api:app --host 0.0.0.0 --port ${PORT:-8000}"]
+EXPOSE 10000
+
+CMD ["sh", "-c", "uvicorn intelli_assist.api:app --host 0.0.0.0 --port ${PORT:-10000}"]
