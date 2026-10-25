@@ -194,7 +194,7 @@ async def chat(
             history = []
 
         # Persist conversation history.
-        store.save_conversation(
+        saved=store.save_conversation(
             customer_id=customer_id,
             session_id=request.session_id,
             history=history,
