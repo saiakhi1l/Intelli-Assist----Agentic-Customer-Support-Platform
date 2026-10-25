@@ -29,8 +29,6 @@ async def lifespan(app: FastAPI):
     graph = None
 
     try:
-        # Use Neon PostgreSQL when DATABASE_URL is configured.
-        # Otherwise, use SQLite for local development.
         if settings.storage_backend == "postgres":
             logger.info("Initializing PostgreSQL storage.")
             store = PostgresStore(settings.database_url)
@@ -38,7 +36,6 @@ async def lifespan(app: FastAPI):
             logger.info("Initializing SQLite storage.")
             store = SQLiteStore(settings.sqlite_path)
 
-        # Configure the support graph when the Groq API key is available.
         if settings.groq_api_key:
             retriever = KnowledgeRetriever()
             retriever.initialize()
@@ -49,6 +46,7 @@ async def lifespan(app: FastAPI):
                 retriever=retriever,
                 ticket_service=ticket_service,
             )
+
             logger.info("Support graph initialized successfully.")
         else:
             logger.warning(
@@ -111,8 +109,8 @@ def require_auth(
             detail="Invalid or missing authentication.",
         )
 
-    # Replace this simple development identity with a validated
-    # JWT/OIDC principal before production use.
+    # For production, replace this static identity with a validated
+    # JWT/OIDC principal that identifies the actual customer.
     return {"sub": "authenticated-user"}
 
 
@@ -149,17 +147,25 @@ async def chat(
             detail="Support service is not ready.",
         )
 
-    # Use the authenticated identity, not a client-supplied customer ID.
-    customer_id = principal["sub"]
+    # Use the authenticated identity in authenticated mode.
+    # In demo mode, use the customer ID supplied in the request.
+    if settings.api_auth_enabled:
+        customer_id = principal["sub"]
+    else:
+        customer_id = request.customer_id
+
+        if not customer_id or not customer_id.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="customer_id is required when authentication is disabled.",
+            )
 
     try:
-        # Retrieve existing conversation context.
         conversation = store.get_conversation(
             customer_id=customer_id,
             session_id=request.session_id,
         )
 
-        # Execute the support workflow.
         result = await graph.run(
             message=request.message,
             customer_id=customer_id,
@@ -169,7 +175,6 @@ async def chat(
             facts=conversation["facts"],
         )
 
-        # Append the current interaction to conversation history.
         history = conversation["history"]
 
         history.extend(
@@ -185,7 +190,6 @@ async def chat(
             ]
         )
 
-        # Keep only the configured number of recent messages.
         max_messages = settings.max_history_turns * 2
 
         if max_messages > 0:
@@ -193,19 +197,20 @@ async def chat(
         else:
             history = []
 
-        # Persist conversation history.
-        saved=store.save_conversation(
+        store.save_conversation(
             customer_id=customer_id,
             session_id=request.session_id,
             history=history,
             summary=conversation["summary"],
             facts=conversation["facts"],
         )
-        print("DEBUG customer_id:", customer_id)
-        print("DEBUG session_id:", request.session_id)
-        print("DEBUG saved conversation:", saved)
 
-        # Return the structured API response.
+        logger.info(
+            "Conversation saved for customer_id=%s, session_id=%s",
+            customer_id,
+            request.session_id,
+        )
+
         return ChatResponse(
             request_id=result.get("request_id", str(uuid4())),
             session_id=request.session_id,
