@@ -201,6 +201,9 @@ async def chat(
             summary=conversation["summary"],
             facts=conversation["facts"],
         )
+        print("DEBUG customer_id:", customer_id)
+        print("DEBUG session_id:", request.session_id)
+        print("DEBUG saved conversation:", saved)
 
         # Return the structured API response.
         return ChatResponse(
