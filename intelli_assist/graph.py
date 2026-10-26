@@ -28,7 +28,7 @@ from langgraph.graph import END, START, StateGraph
 def detect_security_risk_with_fallback(
     message: str,
 ) -> str | None:
-    """Supplement the existing detector with common security patterns."""
+    """Supplement the existing security detector with common patterns."""
     try:
         risk = detect_security_risk(message)
         if risk:
@@ -100,13 +100,11 @@ class SupportState(TypedDict, total=False):
 # ============================================================
 
 class SupportGraph:
-
     def __init__(
         self,
         retriever: Any,
         ticket_service: TicketService,
     ) -> None:
-
         if not settings.groq_api_key:
             raise RuntimeError("GROQ_API_KEY is not configured.")
 
@@ -253,7 +251,10 @@ class SupportGraph:
         try:
             policy = detect_policy(message) or {}
         except Exception:
-            policy = {"kind": "unknown", "reason": "policy_check_failed"}
+            policy = {
+                "kind": "unknown",
+                "reason": "policy_check_failed",
+            }
 
         kind = policy.get("kind", "unknown")
 
@@ -475,16 +476,11 @@ class SupportGraph:
         route: str,
     ) -> str:
         """Ask the model once to repair missing/invalid citations."""
-
         source_blocks = []
 
         for index, document in enumerate(documents, start=1):
-            source = self._document_value(
-                document, "source", "unknown"
-            )
-            content = self._document_value(
-                document, "content", ""
-            )
+            source = self._document_value(document, "source", "unknown")
+            content = self._document_value(document, "content", "")
             source_blocks.append(
                 f"[SOURCE_{index}] Source: {source}\n{content}"
             )
@@ -554,6 +550,7 @@ Previous answer:
                 "citations": [],
                 "escalated": True,
                 "escalation_reason": reason,
+                "priority": state.get("priority", "medium"),
                 "evaluation": {
                     **state.get("evaluation", {}),
                     "answer_mode": route,
@@ -566,12 +563,8 @@ Previous answer:
 
         source_blocks = []
         for index, document in enumerate(documents, start=1):
-            source = self._document_value(
-                document, "source", "unknown"
-            )
-            content = self._document_value(
-                document, "content", ""
-            )
+            source = self._document_value(document, "source", "unknown")
+            content = self._document_value(document, "content", "")
             source_blocks.append(
                 f"[SOURCE_{index}] Source: {source}\n{content}"
             )
@@ -660,9 +653,6 @@ For RAG and hybrid routes, cite supported policy claims using the exact [SOURCE_
                         route=route,
                     )
 
-                    # Accept the retry only if it passes citation-format
-                    # and index-range validation. Otherwise retain the
-                    # original answer for transparent failure diagnostics.
                     revised_status = self._citation_status(
                         revised, documents
                     )
@@ -675,8 +665,6 @@ For RAG and hybrid routes, cite supported policy claims using the exact [SOURCE_
 
         citation_status = self._citation_status(answer, documents)
 
-        # Build the API citations list from canonical [SOURCE_n] markers
-        # that refer to retrieved documents.
         canonical_indexes = {
             int(value)
             for value in re.findall(r"\[SOURCE_(\d+)\]", answer)
@@ -852,13 +840,6 @@ For RAG and hybrid routes, cite supported policy claims using the exact [SOURCE_
     async def create_ticket(self, state: SupportState) -> dict:
         reason = state.get("escalation_reason") or "support_review"
 
-        ticket_id = self.ticket_service.create_ticket(
-            customer_id=state["customer_id"],
-            session_id=state["session_id"],
-            reason=reason,
-            description=state.get("message", ""),
-        )
-
         security_reasons = {
             "security_incident",
             "security",
@@ -871,7 +852,27 @@ For RAG and hybrid routes, cite supported policy claims using the exact [SOURCE_
             "private_customer_data",
         }
 
-        if reason in security_reasons:
+        is_security_incident = (
+            bool(state.get("security_risk"))
+            or state.get("intent") in {"security", "fraud"}
+            or reason in security_reasons
+        )
+
+        priority = (
+            "urgent"
+            if is_security_incident
+            else state.get("priority", "medium")
+        )
+
+        ticket_id = self.ticket_service.create_ticket(
+            customer_id=state["customer_id"],
+            session_id=state["session_id"],
+            reason=reason,
+            description=state.get("message", ""),
+            priority=priority,
+        )
+
+        if is_security_incident:
             answer = (
                 "This request has been flagged for security review. "
                 "Please use the official support channel to secure your account. "
@@ -906,6 +907,7 @@ For RAG and hybrid routes, cite supported policy claims using the exact [SOURCE_
         return {
             "answer": answer,
             "ticket_id": ticket_id,
+            "priority": priority,
             "escalated": True,
             "escalation_reason": reason,
             "citations": state.get("citations", []),
@@ -914,6 +916,7 @@ For RAG and hybrid routes, cite supported policy claims using the exact [SOURCE_
                 "escalated": True,
                 "ticket_created": True,
                 "ticket_reason": reason,
+                "ticket_priority": priority,
             },
         }
 
@@ -930,7 +933,6 @@ For RAG and hybrid routes, cite supported policy claims using the exact [SOURCE_
         summary: str = "",
         facts: list[dict] | None = None,
     ) -> dict:
-
         initial_state: SupportState = {
             "request_id": str(uuid4()),
             "message": message,

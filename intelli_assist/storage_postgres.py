@@ -1,4 +1,3 @@
-
 import json
 import os
 from typing import Any
@@ -33,7 +32,7 @@ class PostgresStore:
                 "DATABASE_URL must be a PostgreSQL URL."
             )
 
-        # Return query results as dictionaries, not tuples.
+        # Return query results as dictionaries.
         self.pool = ConnectionPool(
             conninfo=self.database_url,
             min_size=1,
@@ -160,11 +159,28 @@ class PostgresStore:
         session_id: str,
         reason: str,
         description: str,
+        priority: str = "medium",
     ) -> None:
-        """Create a support ticket."""
+        """Create a support ticket with its assigned priority."""
+
+        # Normalize and validate the priority before inserting.
+        normalized_priority = (priority or "medium").strip().lower()
+
+        allowed_priorities = {
+            "low",
+            "medium",
+            "high",
+            "urgent",
+        }
+
+        if normalized_priority not in allowed_priorities:
+            normalized_priority = "medium"
+
+        normalized_reason = (reason or "").strip()
+
         subject = (
-            reason.strip()
-            if reason and reason.strip()
+            normalized_reason
+            if normalized_reason
             else "Customer support request"
         )
 
@@ -181,15 +197,16 @@ class PostgresStore:
                     session_id,
                     reason
                 )
-                VALUES (%s, %s, %s, %s, 'medium', 'open', %s, %s)
+                VALUES (%s, %s, %s, %s, %s, 'open', %s, %s)
                 """,
                 (
                     ticket_id,
                     subject,
                     description or "",
                     customer_id,
+                    normalized_priority,
                     session_id or "",
-                    reason or subject,
+                    normalized_reason or subject,
                 ),
             )
 
